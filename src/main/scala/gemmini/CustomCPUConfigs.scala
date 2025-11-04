@@ -1,8 +1,8 @@
 /*
 package chipyard
 
-import boom.common._
-import freechips.rocketchip.subsystem._
+import boom.v3.common._
+import freechips.rocketchip.rocket._
 
 object CustomGemmminiCPUConfigs {
   // Default CPU configs
