@@ -88,5 +88,9 @@ if [ ! -f "${full_binary_path}" ]; then
 fi
 
 cd ../../sims/verilator/
-./simulator-chipyard.harness-CustomGemminiSoCConfig${DEBUG} $PK ${full_binary_path}
-
+start_time=$(date +%s.%N)
+# ./simulator-chipyard.harness-CustomGemminiSoCConfig${DEBUG} $PK ${full_binary_path}
+./simulator-chipyard.harness-CustomGemminiSoCConfig${DEBUG} $PK ${full_binary_path} +loadmem=${full_binary_path} 
+end_time=$(date +%s.%N)
+elapsed=$(awk "BEGIN {print $end_time - $start_time}")
+printf "\nElapsed(sec): %.2f\n\n" "$elapsed"
