@@ -88,5 +88,5 @@ if [ ! -f "${full_binary_path}" ]; then
 fi
 
 cd ../../sims/verilator/
-./simulator-chipyard-CustomGemminiSoCConfig${DEBUG} $PK ${full_binary_path}
+./simulator-chipyard.harness-CustomGemminiSoCConfig${DEBUG} $PK ${full_binary_path}
 
