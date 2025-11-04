@@ -7,7 +7,7 @@ WAVEFORM="waveforms/waveform.vcd"
 help () {
   echo "Run a RISCV Gemmini program on Verilator, a cycle-accurate simulator"
   echo
-  echo "Usage: $0 [--pk] [--debug] BINARY"
+  echo "Usage: $0 [--pk] [--debug] [-c C] BINARY"
   echo
   echo "Options:"
   echo " pk      Run binaries on the proxy kernel, which enables virtual memory"
@@ -20,6 +20,8 @@ help () {
   echo " BINARY  The RISCV binary that you want to run. This can either be the"
   echo '         name of a program in `software/gemmini-rocc-tests`, or it can'
   echo "         be the full path to a binary you compiled."
+  echo
+  echo " c C     Specify the name of the target chipyard config." 
   echo
   echo "Examples:"
   echo "         $0 template"
@@ -40,12 +42,14 @@ pk=0
 debug=0
 show_help=0
 binary=""
+config="CustomGemminiSoCConfig"
 
 while [ $# -gt 0 ] ; do
   case $1 in
     --pk) pk=1 ;;
     --debug) debug=1 ;;
     -h | --help) show_help=1 ;;
+    -c) config=$2; shift ;;
     *) binary=$1
   esac
 
@@ -90,7 +94,7 @@ fi
 cd ../../sims/verilator/
 start_time=$(date +%s.%N)
 # ./simulator-chipyard.harness-CustomGemminiSoCConfig${DEBUG} $PK ${full_binary_path}
-./simulator-chipyard.harness-CustomGemminiSoCConfig${DEBUG} $PK ${full_binary_path} +loadmem=${full_binary_path} 
+./simulator-chipyard.harness-${config}${DEBUG} $PK ${full_binary_path} +loadmem=${full_binary_path} 
 end_time=$(date +%s.%N)
 elapsed=$(awk "BEGIN {print $end_time - $start_time}")
 printf "\nElapsed(sec): %.2f\n\n" "$elapsed"
