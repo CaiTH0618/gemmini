@@ -44,6 +44,10 @@ show_help=0
 binary=""
 config="CustomGemminiSoCConfig"
 
+if [ -n "${GEMMINI_CONFIG:-}" ]; then
+  config="$GEMMINI_CONFIG"
+fi
+
 while [ $# -gt 0 ] ; do
   case $1 in
     --pk) pk=1 ;;

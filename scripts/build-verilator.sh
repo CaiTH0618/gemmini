@@ -21,6 +21,10 @@ j="1"
 threads="1"
 config="CustomGemminiSoCConfig"
 
+if [ -n "${GEMMINI_CONFIG:-}" ]; then
+  config="$GEMMINI_CONFIG"
+fi
+
 while [ $# -gt 0 ] ; do
   case $1 in
     -h | --help) show_help=1 ;;
