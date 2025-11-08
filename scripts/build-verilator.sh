@@ -20,9 +20,11 @@ debug=""
 j="1"
 threads="1"
 config="CustomGemminiSoCConfig"
+config_set=0
 
 if [ -n "${GEMMINI_CONFIG:-}" ]; then
   config="$GEMMINI_CONFIG"
+  config_set=1
 fi
 
 while [ $# -gt 0 ] ; do
@@ -31,7 +33,7 @@ while [ $# -gt 0 ] ; do
     --debug) debug="debug" ;;
     -j) j=$2; shift ;;
     -t) threads=$2; shift ;;
-    -c) config=$2; shift ;;
+    -c) config=$2; shift ; config_set=1 ;;
   esac
 
   shift
@@ -39,6 +41,10 @@ done
 
 if [ $show_help -eq 1 ]; then
  help
+fi
+
+if [ $config_set -eq 0 ]; then
+  echo "Warning: No chipyard config specified via -c or GEMMINI_CONFIG; defaulting to ${config}." >&2
 fi
 
 cd ../../sims/verilator/

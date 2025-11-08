@@ -43,9 +43,11 @@ debug=0
 show_help=0
 binary=""
 config="CustomGemminiSoCConfig"
+config_set=0
 
 if [ -n "${GEMMINI_CONFIG:-}" ]; then
   config="$GEMMINI_CONFIG"
+  config_set=1
 fi
 
 while [ $# -gt 0 ] ; do
@@ -53,7 +55,7 @@ while [ $# -gt 0 ] ; do
     --pk) pk=1 ;;
     --debug) debug=1 ;;
     -h | --help) show_help=1 ;;
-    -c) config=$2; shift ;;
+    -c) config=$2; shift ; config_set=1 ;;
     *) binary=$1
   esac
 
@@ -62,6 +64,10 @@ done
 
 if [ $show_help -eq 1 ]; then
    help
+fi
+
+if [ $config_set -eq 0 ]; then
+  echo "Warning: No chipyard config specified via -c or GEMMINI_CONFIG; defaulting to ${config}." >&2
 fi
 
 if [ $pk -eq 1 ]; then
