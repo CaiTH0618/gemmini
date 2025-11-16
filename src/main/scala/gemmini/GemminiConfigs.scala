@@ -16,6 +16,9 @@ case class ScaleArguments[T <: Data, U <: Data](scale_func: (T, U) => T, latency
 
 case class GemminiArrayConfig[T <: Data : Arithmetic, U <: Data, V <: Data](
                                                                              opcodes: OpcodeSet = OpcodeSet.custom3,
+                                                                              
+                                                                             // CTH: Add an id for identification in a multi-gemmini config
+                                                                             gemmini_id: Int = 0,
 
                                                                              inputType: T,
                                                                              spatialArrayOutputType: T,

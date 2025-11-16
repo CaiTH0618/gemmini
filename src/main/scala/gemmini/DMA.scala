@@ -121,14 +121,18 @@ class StreamReadBeat (val nXacts: Int, val beatBits: Int, val maxReqBytes: Int) 
 }
 
 // TODO StreamReaderCore and StreamWriter are actually very alike. Is there some parent class they could both inherit from?
-class StreamReaderCore[T <: Data, U <: Data, V <: Data](config: GemminiArrayConfig[T, U, V], nXacts: Int, beatBits: Int,
-                                                        maxBytes: Int, spadWidth: Int, accWidth: Int, aligned_to: Int,
-                                                        spad_rows: Int, acc_rows: Int, meshRows: Int,
-                                                        use_tlb_register_filter: Boolean,
-                                                        use_firesim_simulation_counters: Boolean)
-                                 (implicit p: Parameters) extends LazyModule {
+class StreamReaderCore[T <: Data, U <: Data, V <: Data](
+  config: GemminiArrayConfig[T, U, V], nXacts: Int, beatBits: Int,
+  maxBytes: Int, spadWidth: Int, accWidth: Int, aligned_to: Int,
+  spad_rows: Int, acc_rows: Int, meshRows: Int,
+  use_tlb_register_filter: Boolean,
+  use_firesim_simulation_counters: Boolean
+)(implicit p: Parameters) extends LazyModule {
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
-    name = "stream-reader", sourceId = IdRange(0, nXacts))))))
+    // name = "stream-reader", 
+    name = "Gemmini"+ config.gemmini_id + "-DMALoad", 
+    sourceId = IdRange(0, nXacts)
+  )))))
 
   require(isPow2(aligned_to))
 
@@ -347,12 +351,17 @@ class StreamWriteRequest(val dataWidth: Int, val maxBytes: Int)(implicit p: Para
   val store_en = Bool()
 }
 
-class StreamWriter[T <: Data: Arithmetic](nXacts: Int, beatBits: Int, maxBytes: Int, dataWidth: Int, aligned_to: Int,
-                                          inputType: T, block_cols: Int, use_tlb_register_filter: Boolean,
-                                          use_firesim_simulation_counters: Boolean)
-                  (implicit p: Parameters) extends LazyModule {
+class StreamWriter[T <: Data: Arithmetic, U <: Data, V <: Data](
+  config: GemminiArrayConfig[T, U, V], nXacts: Int, beatBits: Int, 
+  maxBytes: Int, dataWidth: Int, aligned_to: Int,
+  inputType: T, block_cols: Int, use_tlb_register_filter: Boolean,
+  use_firesim_simulation_counters: Boolean
+)(implicit p: Parameters) extends LazyModule {
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
-    name = "stream-writer", sourceId = IdRange(0, nXacts))))))
+    // name = "stream-writer", 
+    name = "Gemmini"+ config.gemmini_id + "-DMAStore", 
+    sourceId = IdRange(0, nXacts)
+  )))))
 
   require(isPow2(aligned_to))
 
