@@ -10,7 +10,9 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util.ClockGate
-import freechips.rocketchip.tilelink.TLIdentityNode
+import freechips.rocketchip.tilelink._
+import freechips.rocketchip.subsystem._
+import freechips.rocketchip.resources._
 import GemminiISA._
 import Util._
 
@@ -19,6 +21,87 @@ class GemminiCmd(rob_entries: Int)(implicit p: Parameters) extends Bundle {
   val rob_id = UDValid(UInt(log2Up(rob_entries).W))
   val from_matmul_fsm = Bool()
   val from_conv_fsm = Bool()
+}
+
+// TODO: A lot a demo code below. Need re-constructtion.
+
+class SlaveNodeModule[T <: Data, U <: Data, V <: Data](config: GemminiArrayConfig[T, U, V])
+    (implicit p: Parameters) extends LazyModule {
+  import config._
+
+  // =====================================================================
+  // DEMO IMPLEMENTATION: Expose a real memory behind the SBUS slave port
+  // =====================================================================
+  // Addressing
+  // - Base: F000_0000 + (gemmini_id << 16)
+  // - Mask: 0xFFFF -> 64 KiB aperture by default
+  // You can change addrMask to grow/shrink this window (keep it 2^N-1).
+  private val addrBase = BigInt("F0000000", 16) + (BigInt(gemmini_id) << 16)
+  private val addrMask = BigInt("FFFF", 16);
+
+  // Use SBUS beatBytes for anything exposed on SBUS (don't reuse dma_buswidth).
+  // private val sbusBeatBytes = dma_buswidth / 8
+  private val cacheBlockBytes = p(CacheBlockBytes)
+
+  // Device description for DTS (MemoryDevice is appropriate for SRAM-like regions)
+  private val memDevice = new MemoryDevice()
+
+  // ---------------------------------------------------------------------
+  // Inline multi-subbank scratchpad (copied pattern)
+  // - Mimics testchipip.soc.ScratchpadBank layout, but locally defined
+  // - Splits the address window across multiple sub-banks interleaved by
+  //   cache-line stripes to improve banking/throughput in simple scenarios
+  // - Tweak `subBanks` below to your needs
+  // ---------------------------------------------------------------------
+  private val bankBeatBytes = cacheBlockBytes
+  private val subBanks = 2
+  private val bankStripeBytes = bankBeatBytes // interleave per cache line
+  private val perBankMaskReduction = BigInt((subBanks - 1) * bankStripeBytes)
+
+  // Local crossbar that fans in SBUS/local traffic and fans out to each sub-bank
+  private val bankXbar = TLXbar()
+  
+  // Local DMA client hook:
+  // Expose an upstream TL client port so Gemmini's DMA (spad.id_node)
+  // can reach this memory without traversing SBUS. Gemmini connects to this.
+  val localClientTLNode = TLIdentityNode()
+  
+  // Publish the concrete AddressSets used by each sub-bank so upstream users
+  // (e.g., Gemmini DMA) can filter SBUS routes to avoid overlapping address
+  // advertisements when also using this local path.
+  val bankAddressSets: Seq[AddressSet] = (0 until subBanks).map { sb =>
+    val bankBase = addrBase + BigInt(sb) * BigInt(bankStripeBytes)
+    val bankMask = addrMask - perBankMaskReduction
+    AddressSet(bankBase, bankMask)
+  }
+  // Instantiate one TLRAM per sub-bank with striped AddressSet
+  (0 until subBanks).foreach { sb =>
+    val bankRam = LazyModule(new TLRAM(
+      address     = bankAddressSets(sb),
+      beatBytes   = bankBeatBytes,
+      devOverride = Some(memDevice),
+      cacheable = false,
+      executable = false,
+      atomics = false,
+    ) { 
+      override lazy val desiredName = s"TLRAM_GemminiSharedSpadBank" 
+    })
+    bankRam.suggestName(s"Gemmini${gemmini_id}-SharedSpadBank${sb}")
+    bankRam.node := TLBuffer() := bankXbar
+  }
+
+  // Exposed node (what Gemmini exports up to SBUS)
+  // Use a dedicated identity node as the SBUS-facing port, which we then
+  // buffer into our internal xbar. This keeps the external interface clean
+  // and makes it easy to insert adapters without touching internal wiring.
+  val node = TLIdentityNode()
+  bankXbar := TLBuffer() := node              // SBUS path into banks
+  bankXbar := TLBuffer() := localClientTLNode // Local DMA path into banks
+
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
+    val io = IO(new Bundle {})
+  }
 }
 
 class Gemmini[T <: Data : Arithmetic, U <: Data, V <: Data](val config: GemminiArrayConfig[T, U, V])
@@ -36,10 +119,36 @@ class Gemmini[T <: Data : Arithmetic, U <: Data, V <: Data](val config: GemminiA
   val spad = LazyModule(new Scratchpad(config))
 
   override lazy val module = new GemminiModule(this)
-  override val tlNode = if (config.use_dedicated_tl_port) spad.id_node else TLIdentityNode()
-  override val atlNode = if (config.use_dedicated_tl_port) TLIdentityNode() else spad.id_node
+  // Route Gemmini DMA (spad.id_node) through a local Xbar so we can
+  // fork traffic both to SBUS (normal path) and to the local scratchpad
+  // bank without a round trip through SBUS.
+  private val dmaXbar = TLXbar()
+  // Expose a filtered SBUS-facing node so the DMA Xbar does not
+  // see the locally-banked scratchpad address ranges via SBUS as well.
+  private val tlSbusFiltered = TLIdentityNode()
+  override val tlNode = if (config.use_dedicated_tl_port) tlSbusFiltered else TLIdentityNode()
+  override val atlNode = if (config.use_dedicated_tl_port) TLIdentityNode() else tlSbusFiltered
 
   val node = if (config.use_dedicated_tl_port) tlNode else atlNode
+
+  // CTH: Add a TL slave node so that gemmini cores can communicate with 
+  //      each other.
+  val slaveNode = LazyModule(new SlaveNodeModule(config))
+  override val sbusSlaveTLNode = slaveNode.node
+
+  // Direct local DMA path: connect Gemmini's DMA client to the local
+  // scratchpad banks inside SlaveNodeModule, avoiding SBUS round trips.
+  // Width-adapt to the banks' beatBytes (here we match CacheBlockBytes).
+  // You can insert additional TLBuffer/TLFragmenter here if needed.
+  // Feed spad into the local DMA Xbar, then fork to SBUS and to the
+  // local scratchpad banks.
+  dmaXbar := spad.id_node
+  slaveNode.localClientTLNode := dmaXbar
+
+  // Filter out the local scratchpad bank ranges from the SBUS leg to avoid
+  // overlapping address maps at the DMA Xbar. All non-bank addresses still
+  // flow to SBUS normally.
+  tlSbusFiltered := TLFilter(TLFilter.mSubtract(slaveNode.bankAddressSets)) := TLWidthWidget(config.dma_buswidth / 8) := dmaXbar
 }
 
 class GemminiModule[T <: Data: Arithmetic, U <: Data, V <: Data]
