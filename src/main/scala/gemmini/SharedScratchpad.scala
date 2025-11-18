@@ -57,9 +57,10 @@ class SharedScratchpad[T <: Data, U <: Data, V <: Data] (
   implicit p: Parameters
 ) extends LazyModule {
 
-  import config.{gemmini_id, dma_maxbytes}
+  import config.{gemmini_id, dma_maxbytes, dma_buswidth}
   import config.shared_scratchpad_config._
   
+  require(local_bank_interleaved_bytes >= dma_maxbytes)
   require(local_bank_beat_bytes <= dma_maxbytes)
 
   // Connected to bus for remote access
@@ -88,7 +89,8 @@ class SharedScratchpad[T <: Data, U <: Data, V <: Data] (
       atomics     = false,
     ))
     bank.suggestName(s"Gemmini${gemmini_id}-SharedScratchpadBank${bank_id}")
-    bank.node := TLFragmenter(local_bank_beat_bytes, dma_maxbytes) := bank_xbar
+    bank.node := TLFragmenter(local_bank_beat_bytes, dma_maxbytes) := 
+                 TLBuffer(4) := TLWidthWidget(dma_buswidth / 8) := bank_xbar
   }}
 
   lazy val module = new Impl

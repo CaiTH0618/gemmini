@@ -55,7 +55,7 @@ class Gemmini[T <: Data : Arithmetic, U <: Data, V <: Data](val config: GemminiA
 
     val xbar = TLXbar()
     xbar := spad.id_node
-    sharedSpad.local_node := TLWidthWidget(config.dma_buswidth / 8) := xbar
+    sharedSpad.local_node := xbar
     masterNode := TLFilter(TLFilter.mSubtract(sharedSpad.bank_addr_sets)) := 
                   TLWidthWidget(config.dma_buswidth / 8) := xbar
   }
