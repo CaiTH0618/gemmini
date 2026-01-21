@@ -346,3 +346,5 @@ configs/
 generated-src/
 waveforms/
 
+.vscode
+.metals
