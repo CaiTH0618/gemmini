@@ -88,7 +88,7 @@ class SharedScratchpad[T <: Data, U <: Data, V <: Data] (
       executable  = false,
       atomics     = false,
     ))
-    bank.suggestName(s"Gemmini${gemmini_id}-SharedScratchpadBank${bank_id}")
+    bank.suggestName(s"Gemmini[${gemmini_id}]-SharedScratchpadBank[${bank_id}]")
     bank.node := TLFragmenter(local_bank_beat_bytes, dma_maxbytes) := 
                  TLBuffer(4) := TLWidthWidget(dma_buswidth / 8) := bank_xbar
   }}

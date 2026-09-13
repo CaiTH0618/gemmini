@@ -130,7 +130,7 @@ class StreamReaderCore[T <: Data, U <: Data, V <: Data](
 )(implicit p: Parameters) extends LazyModule {
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
     // name = "stream-reader", 
-    name = "Gemmini"+ config.gemmini_id + "-DMALoad", 
+    name = s"Gemmini[${config.gemmini_id}]-DMALoad",
     sourceId = IdRange(0, nXacts)
   )))))
 
@@ -359,7 +359,7 @@ class StreamWriter[T <: Data: Arithmetic, U <: Data, V <: Data](
 )(implicit p: Parameters) extends LazyModule {
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
     // name = "stream-writer", 
-    name = "Gemmini"+ config.gemmini_id + "-DMAStore", 
+    name = s"Gemmini[${config.gemmini_id}]-DMAStore",
     sourceId = IdRange(0, nXacts)
   )))))
 
